@@ -1,7 +1,78 @@
-# itj_csv
-A header only C CSV parsing library, in style of the stb headers
+/*
+ * LICENSE available at the bottom
+ */
 
-# License
+// GENERATE A LARGE AND COMPLEX CSV FILE
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+
+#define NUM_COLUMNS 1000
+#define NUM_ROWS (100 * 1000)
+#define MAX_WORD_SIZE 30
+#define MIN_WORD_SIZE 2 // If it becomes "quoted" then it erases two. So 2 is minimum
+
+#define CHARACTERS "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+
+uintmax_t inline our_rand() {
+    return rand(); // I was unable to write a faster rand that wasn't boring
+}
+
+int main(int argc, char *argv[]) {
+    int newline_len;
+    char *newline;
+#if IS_WINDOWS
+    newline = "\r\n";
+    newline_len = 2;
+#else
+    newline = "\n";
+    newline_len = 1;
+#endif
+    char word[MAX_WORD_SIZE];
+    int word_len;
+
+    FILE *fh = fopen("generated.csv", "wb");
+    if (!fh) {
+        printf("Unable to create or open generated.csv\n");
+        return EXIT_FAILURE;
+    }
+
+    setvbuf(fh, NULL, _IOFBF, 1024 * 1024 * 1024);
+
+    srand(time(NULL));
+    for (unsigned long long row = 0; row < NUM_ROWS; ++row) {
+        for (unsigned long long column = 0; column < NUM_COLUMNS; ++column) {
+            int quoted = our_rand() % 2;
+            word_len = (our_rand() % (MAX_WORD_SIZE - MIN_WORD_SIZE)) + MIN_WORD_SIZE;
+
+            for (int i = 0; i < word_len; ++i) {
+                word[i] = CHARACTERS[our_rand() % (sizeof(CHARACTERS) - 1)];
+            }
+
+            if (quoted) {
+                word[0] = '\"';
+                word[word_len - 1] = '\"';
+            }
+
+
+            fwrite(word, 1, word_len, fh);
+            if (column + 1 != NUM_COLUMNS) {
+                fwrite(",", 1, 1, fh);
+            }
+        }
+        fwrite(newline, 1, newline_len, fh);
+
+        if (row % 10000 == 0) {
+            printf("%llu rows written\n", row);
+        }
+    }
+
+    fclose(fh);
+
+    return EXIT_SUCCESS;
+}
+
+/*
 ------------------------------------------------------------------------------
 This software is available under 2 licenses -- choose whichever you prefer.
 ------------------------------------------------------------------------------
@@ -41,3 +112,4 @@ AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
 ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION 
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ------------------------------------------------------------------------------
+*/

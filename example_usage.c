@@ -1,3 +1,7 @@
+/*
+ * LICENSE available at the bottom
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -137,6 +141,8 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+
+    // The CSV file, downloaded from the World Bank website, is non-standard, so we move around in the file first
     struct itj_csv_value value;
     value = itj_csv_get_next_value(&csv); // Skip Data Source
     value = itj_csv_get_next_value(&csv); // Skip Data Source Value
@@ -152,6 +158,7 @@ int main(int argc, char *argv[]) {
     }
 
     itj_csv_u32 column_offset = 4;
+    itj_csv_bool end = ITJ_CSV_FALSE;
     struct entry ent;
     for (;;) {
         itj_csv_umax column = (csv.idx - column_offset) % header.num_columns;
@@ -163,9 +170,10 @@ int main(int argc, char *argv[]) {
         if (value.need_data) {
             pump_ret = itj_csv_pump_stdio(&csv);
             if (pump_ret == 0) {
-                break;
+                end = ITJ_CSV_TRUE;
+            } else {
+                continue;
             }
-            continue;
         }
 
         if (value.is_end_of_line) {
@@ -227,6 +235,10 @@ int main(int argc, char *argv[]) {
             itj_csv_umax idx = (column - 4);
             ent.dates[idx] = val;
         }
+
+        if (end) {
+            break;
+        }
     }
 
     itj_csv_close_fh(&csv);
@@ -259,11 +271,11 @@ int main(int argc, char *argv[]) {
                         float val = ent.dates[j];
                         if (!isnan(val) && is_first) {
                             is_first = ITJ_CSV_FALSE;
-                            printf("No data available from 1960 to %d\n", date);
+                            printf("No data available from 1960 to %lld\n", date);
                         }
 
                         if (!isnan(val)) {
-                            printf("%d: %f\n", date, val);
+                            printf("%lld: %f\n", date, val);
                         }
                     }
                 }
@@ -276,3 +288,45 @@ int main(int argc, char *argv[]) {
 
     return EXIT_SUCCESS;
 }
+
+/*
+------------------------------------------------------------------------------
+This software is available under 2 licenses -- choose whichever you prefer.
+------------------------------------------------------------------------------
+ALTERNATIVE A - MIT License
+Copyright (c) 2017 Ian Thomassen Jacobsen
+Permission is hereby granted, free of charge, to any person obtaining a copy of 
+this software and associated documentation files (the "Software"), to deal in 
+the Software without restriction, including without limitation the rights to 
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies 
+of the Software, and to permit persons to whom the Software is furnished to do 
+so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all 
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE 
+SOFTWARE.
+------------------------------------------------------------------------------
+ALTERNATIVE B - Public Domain (www.unlicense.org)
+This is free and unencumbered software released into the public domain.
+Anyone is free to copy, modify, publish, use, compile, sell, or distribute this 
+software, either in source code form or as a compiled binary, for any purpose, 
+commercial or non-commercial, and by any means.
+In jurisdictions that recognize copyright laws, the author or authors of this 
+software dedicate any and all copyright interest in the software to the public 
+domain. We make this dedication for the benefit of the public at large and to 
+the detriment of our heirs and successors. We intend this dedication to be an 
+overt act of relinquishment in perpetuity of all present and future rights to 
+this software under copyright law.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN 
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION 
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+------------------------------------------------------------------------------
+*/
