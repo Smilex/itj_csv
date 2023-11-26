@@ -10,10 +10,13 @@
 
 #include <windows.h>
 
+#include <tracy/TracyC.h>
+
 #define ITJ_CSV_IMPLEMENTATION
 #include "itj_csv.h"
 
 #define KB(x) (x * 1024)
+#define MB(x) (KB(x) * 1024)
 #define SIZE_OF_NULL_TERMINATOR 1
 #define SIZE_OF_DIR_SEPERATOR 1
 #define NUM_BUFFERED_CYCLES (10 * 1000 * 1000)
@@ -23,6 +26,23 @@
 #else
 #define DIR_SEPERATOR "/"
 #endif
+
+#ifdef IS_WINDOWS
+double g_freq;
+
+double get_time_ms() {
+    LARGE_INTEGER li;
+    QueryPerformanceCounter(&li);
+    return ((double)li.QuadPart)/g_freq;
+}
+#else
+double get_time_ms() {
+    // TODO: Clock Monotonic
+}
+#endif
+
+
+TracyCZoneCtx zone_ctx;
 
 itj_csv_bool compare_strings(char *base1, itj_csv_umax len1, char *base2, itj_csv_umax len2) {
     if (len1 == len2) {
@@ -73,14 +93,11 @@ void test_print_result(itj_csv_bool result) {
     }
 }
 
-void print_total(itj_csv_umax bytes_read, double multiplier, __int64 cycles_start, __int64 cycles_end) {
-    __int64 cycles_diff = cycles_end - cycles_start;
-    double time_diff_ns = multiplier * cycles_diff;
-    double time_diff_ms = time_diff_ns / 100000.0;
+void print_total(itj_csv_umax bytes_read, double time_start, double time_end) {
+    double time_diff_ms = time_end - time_start;
     double time_diff_sec = time_diff_ms / 1000.0;
 
-    sitrep("It took %lld cycles to complete\n", cycles_diff);
-    sitrep("Read %llu total bytes. %.3f MB per second\n", bytes_read, ((double)bytes_read / time_diff_sec) / (1024.0 * 1024.0));
+    sitrep("Read %llu total bytes. %.3f MB per second\n", bytes_read, ((double)bytes_read / (1024.0 * 1024.0)) / time_diff_sec);
 
 }
 
@@ -88,6 +105,15 @@ int main(int argc, char *argv[]) {
     printf("Press any key to start\n");
     getch(stdin);
 
+#ifdef IS_WINDOWS
+    {
+        LARGE_INTEGER large_integer;
+        QueryPerformanceFrequency(&large_integer);
+        g_freq = ((double)large_integer.QuadPart) / 1000.0;
+    }
+#endif
+
+    TracyCZone(zone_ctx, 1);
     g_sitrep_filepath = (char *)calloc(1, KB(10));
     if (!g_sitrep_filepath) {
         printf("Unable to allocate memory for sitrep filepath\n");
@@ -167,7 +193,7 @@ int main(int argc, char *argv[]) {
     }
 
     printf("Running itj_csv correctness tests\n");
-    itj_csv_umax buffer_max = KB(512);
+    itj_csv_umax buffer_max = MB(512);
     void *buffer = calloc(1, buffer_max);
     if (!buffer) {
         printf("Unable to allocate memory for parsing buffer\n");
@@ -291,11 +317,7 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    __int64 cycles_start_of_reference = __rdtsc();
-    LARGE_INTEGER large_integer;
-    QueryPerformanceCounter(&large_integer);
-    itj_csv_umax time_start_of_reference = large_integer.QuadPart;
-
+    double time_start_of_reference = get_time_ms();
 
     itj_csv_umax bytes_read = 0;
     for (;;) {
@@ -311,19 +333,12 @@ int main(int argc, char *argv[]) {
 
         bytes_read += bytes;
     }
-    __int64 cycles_end_of_reference = __rdtsc();
-    QueryPerformanceCounter(&large_integer);
-    itj_csv_umax time_end_of_reference = large_integer.QuadPart;
+
+    double time_end_of_reference = get_time_ms();
 
     fclose(fh);
 
-    QueryPerformanceFrequency(&large_integer);
-    itj_csv_umax freq = large_integer.QuadPart;
-
-    __int64 cycles_freq = (cycles_end_of_reference - cycles_start_of_reference) * freq / (time_end_of_reference - time_start_of_reference);
-    double multiplier = 1000000000.0 / (double)cycles_freq;
-
-    print_total(bytes_read, multiplier, cycles_start_of_reference, cycles_end_of_reference);
+    print_total(bytes_read, time_start_of_reference, time_end_of_reference);
 
     if (!itj_csv_open(&csv, generated_csv_path, generated_csv_path_len, buffer, buffer_max, ITJ_CSV_DELIM_COMMA, NULL)) {
         printf("Failed to initalize itj_csv struct to file, '%s'\n", correctness_with_header_csv_path);
@@ -343,12 +358,9 @@ int main(int argc, char *argv[]) {
     num_lines = 0;
     __int64 num_values = 0;
     end = ITJ_CSV_FALSE;
-    __int64 cycles_start_of_standard = __rdtsc();
-    
+    double time_start_of_standard = get_time_ms();
     for (;;) {
-        __int64 cycles_start_of_loop = __rdtsc();
         struct itj_csv_value value = itj_csv_get_next_value(&csv);
-        __int64 cycles_after_next_value = __rdtsc();
 
 #if 0
         itj_csv_umax column;
@@ -369,15 +381,6 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        __int64 cycles_after_work = __rdtsc();
-        __int64 cycles_diff = cycles_after_next_value - cycles_start_of_loop;
-
-        if (num_values < NUM_BUFFERED_CYCLES) {
-            buffered_cycles[num_values] = cycles_diff;
-        }
-        num_values++;
-
-
         if (value.is_end_of_line) {
             ++num_lines;
             if (num_columns == -1) {
@@ -385,39 +388,27 @@ int main(int argc, char *argv[]) {
             }
         }
 
+        ++num_values;
+
         if (end) {
             break;
         }
-    }
-    __int64 cycles_end_of_standard = __rdtsc();
 
-    itj_csv_close_fh(&csv);
+    }
+    double time_end_of_standard = get_time_ms();
+
 
     sitrep("The following numbers are for the non-SIMD version\n");
 
-    print_total(bytes_read, multiplier, cycles_start_of_standard, cycles_end_of_standard);
+    print_total(bytes_read, time_start_of_standard, time_end_of_standard);
+    itj_csv_close_fh(&csv);
 
-
-    itj_csv_umax mean = 0;
-    __int64 total = (num_values < NUM_BUFFERED_CYCLES ? num_values : NUM_BUFFERED_CYCLES);
-    for (itj_csv_umax i = 0; i < total; ++i) {
-        mean += buffered_cycles[i];
-    }
-
-    mean /= total;
 
     sitrep("The number of iterations %llu\n", num_values);
     sitrep("The number of lines %llu\n", num_lines);
     sitrep("The number of columns %llu\n", num_columns);
 
-    sitrep("The mean cycle amount for job is %llu\n", mean);
-    sitrep("The mean in nanoseconds for job is %0.2f\n", (double)mean * multiplier);
-
-
-    sitrep("The mean cycle amount for main loop is %llu\n", csv.profiler.main_loop_avg);
-    sitrep("The mean cycle amount for was in quotes is %llu\n", csv.profiler.was_in_quotes_avg);
-    sitrep("The mean cycle amount for got doubles is %llu\n", csv.profiler.got_doubles_avg);
-
+    TracyCZoneEnd(zone_ctx);
     getc(stdin);
 
     return EXIT_SUCCESS;
