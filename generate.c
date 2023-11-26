@@ -7,10 +7,10 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#define NUM_COLUMNS 1000
-#define NUM_ROWS (100 * 1000)
+#define NUM_COLUMNS 500
+#define NUM_ROWS (1 * 1000)
 #define MAX_WORD_SIZE 30
-#define MIN_WORD_SIZE 2 // If it becomes "quoted" then it erases two. So 2 is minimum
+#define MIN_WORD_SIZE 4 // If it becomes "quoted" then it erases two. So 2 is minimum
 
 #define CHARACTERS "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
@@ -40,6 +40,7 @@ int main(int argc, char *argv[]) {
     setvbuf(fh, NULL, _IOFBF, 1024 * 1024 * 1024);
 
     srand(time(NULL));
+
     for (unsigned long long row = 0; row < NUM_ROWS; ++row) {
         for (unsigned long long column = 0; column < NUM_COLUMNS; ++column) {
             int quoted = our_rand() % 2;
@@ -53,7 +54,6 @@ int main(int argc, char *argv[]) {
                 word[0] = '\"';
                 word[word_len - 1] = '\"';
             }
-
 
             fwrite(word, 1, word_len, fh);
             if (column + 1 != NUM_COLUMNS) {

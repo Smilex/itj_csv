@@ -85,6 +85,9 @@ void print_total(itj_csv_umax bytes_read, double multiplier, __int64 cycles_star
 }
 
 int main(int argc, char *argv[]) {
+    printf("Press any key to start\n");
+    getch(stdin);
+
     g_sitrep_filepath = (char *)calloc(1, KB(10));
     if (!g_sitrep_filepath) {
         printf("Unable to allocate memory for sitrep filepath\n");
@@ -171,7 +174,6 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-
     struct itj_csv csv;
     if (!itj_csv_open(&csv, correctness_with_header_csv_path, correctness_with_header_csv_path_len, buffer, buffer_max, ITJ_CSV_DELIM_COMMA, NULL)) {
         printf("Failed to initalize itj_csv struct to file, '%s'\n", correctness_with_header_csv_path);
@@ -184,38 +186,12 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    struct itj_csv_header header;
-    if (!itj_csv_parse_header(&csv, &header)) {
-        printf("Unable to parse header from '%s'\n", correctness_with_header_csv_path);
-        return EXIT_FAILURE;
-    }
-
-    test_print("Expecting 5 columns in header");
-    test_print_result(header.num_columns == 5);
-
-    test_print("Is header[0] == column1");
-    test_print_result(compare_strings(header.names[0], header.lens[0], "column1", 7));
-
-    test_print("Is header[1] == column2");
-    test_print_result(compare_strings(header.names[1], header.lens[1], "column2", 7));
-
-    test_print("Is header[2] == column\\r\\n3");
-    test_print_result(compare_strings(header.names[2], header.lens[2], "column\r\n3", 9));
-
-    test_print("Is header[3] == column\"4");
-    test_print_result(compare_strings(header.names[3], header.lens[3], "column\"4", 8));
-
-    test_print("Is header[4] == columnð");
-    test_print_result(compare_strings(header.names[4], header.lens[4], "columnð", 8));
-
     itj_csv_bool end = ITJ_CSV_FALSE;
     itj_csv_u32 num_lines = 0;
+    itj_csv_s32 num_columns = 5;
     for (;;) {
         struct itj_csv_value value = itj_csv_get_next_value(&csv);
-        itj_csv_umax column = value.idx % header.num_columns;
-        if (value.is_end_of_data) {
-            break;
-        }
+        itj_csv_umax column = value.idx % num_columns;
         if (value.need_data) {
             pump_ret = itj_csv_pump_stdio(&csv);
             if (pump_ret == 0) {
@@ -228,47 +204,67 @@ int main(int argc, char *argv[]) {
 
         if (column == 0) {
             if (num_lines == 0) {
-                test_print("Is the first column of the first row == row1_column1");
-                test_print_result(compare_strings(value.base, value.len, "row1_column1", 12));
+                test_print("Is header[0] == column1");
+                test_print_result(compare_strings(value.data.base, value.data.len, "column1", 7));
             } else if (num_lines == 1) {
+                test_print("Is the first column of the first row == row1_column1");
+                test_print_result(compare_strings(value.data.base, value.data.len, "row1_column1", 12));
+            } else if (num_lines == 2) {
                 test_print("Is the first column of the second row == row2_column1");
-                test_print_result(compare_strings(value.base, value.len, "row2_column1", 12));
+                test_print_result(compare_strings(value.data.base, value.data.len, "row2_column1", 12));
             }
         } else if (column == 1) {
             if (num_lines == 0) {
-                test_print("Is the second column of the first row == row1_column2");
-                test_print_result(compare_strings(value.base, value.len, "row1_column2", 12));
+                test_print("Is header[1] == column2");
+                test_print_result(compare_strings(value.data.base, value.data.len, "column2", 7));
             } else if (num_lines == 1) {
+                test_print("Is the second column of the first row == row1_column2");
+                test_print_result(compare_strings(value.data.base, value.data.len, "row1_column2", 12));
+            } else if (num_lines == 2) {
                 test_print("Is the second column of the second row == row2_column2");
-                test_print_result(compare_strings(value.base, value.len, "row2_column2", 12));
+                test_print_result(compare_strings(value.data.base, value.data.len, "row2_column2", 12));
             }
         } else if (column == 2) {
             if (num_lines == 0) {
-                test_print("Is the third column of the first row == row1_column\\r\\n3");
-                test_print_result(compare_strings(value.base, value.len, "row1_column\r\n3", 14));
+                test_print("Is header[2] == column\\r\\n3");
+                test_print_result(compare_strings(value.data.base, value.data.len, "column\r\n3", 9));
             } else if (num_lines == 1) {
+                test_print("Is the third column of the first row == row1_column\\r\\n3");
+                test_print_result(compare_strings(value.data.base, value.data.len, "row1_column\r\n3", 14));
+            } else if (num_lines == 2) {
                 test_print("Is the third column of the second row == row2_column\\r\\n3");
-                test_print_result(compare_strings(value.base, value.len, "row2_column\r\n3", 14));
+                test_print_result(compare_strings(value.data.base, value.data.len, "row2_column\r\n3", 14));
             }
         } else if (column == 3) {
             if (num_lines == 0) {
-                test_print("Is the fourth column of the first row == row1_column\"4");
-                test_print_result(compare_strings(value.base, value.len, "row1_column\"4", 13));
+                test_print("Is header[3] == column\"4");
+                test_print_result(compare_strings(value.data.base, value.data.len, "column\"4", 8));
             } else if (num_lines == 1) {
+                test_print("Is the fourth column of the first row == row1_column\"4");
+                test_print_result(compare_strings(value.data.base, value.data.len, "row1_column\"4", 13));
+            } else if (num_lines == 2) {
                 test_print("Is the fourth column of the second row == row2_column\"4");
-                test_print_result(compare_strings(value.base, value.len, "row2_column\"4", 13));
+                test_print_result(compare_strings(value.data.base, value.data.len, "row2_column\"4", 13));
             }
         } else if (column == 4) {
             if (num_lines == 0) {
-                test_print("Is the fifth column of the first row == row1_columnð");
-                test_print_result(compare_strings(value.base, value.len, "row1_columnð", 13));
+                test_print("Is header[4] == columnð");
+                test_print_result(compare_strings(value.data.base, value.data.len, "columnð", 8));
             } else if (num_lines == 1) {
+                test_print("Is the fifth column of the first row == row1_columnð");
+                test_print_result(compare_strings(value.data.base, value.data.len, "row1_columnð", 13));
+            } else if (num_lines == 2) {
                 test_print("Is the fifth column of the second row == row2_columnð");
-                test_print_result(compare_strings(value.base, value.len, "row2_columnð", 13));
+                test_print_result(compare_strings(value.data.base, value.data.len, "row2_columnð", 13));
             }
         }
 
         if (value.is_end_of_line) {
+            if (num_lines == 0) {
+                test_print("Expecting 5 columns in header");
+                test_print_result(value.idx == 4);
+            }
+
             ++num_lines;
         }
 
@@ -343,11 +339,12 @@ int main(int argc, char *argv[]) {
     }
     bytes_read += pump_ret;
 
-    itj_csv_s32 num_columns = -1;
+    num_columns = -1;
     num_lines = 0;
     __int64 num_values = 0;
     end = ITJ_CSV_FALSE;
     __int64 cycles_start_of_standard = __rdtsc();
+    
     for (;;) {
         __int64 cycles_start_of_loop = __rdtsc();
         struct itj_csv_value value = itj_csv_get_next_value(&csv);
@@ -362,21 +359,18 @@ int main(int argc, char *argv[]) {
         }
 #endif
 
-        if (value.is_end_of_data) {
-            end = ITJ_CSV_TRUE;
-        }
         if (value.need_data) {
             pump_ret = itj_csv_pump_stdio(&csv);
             if (pump_ret == 0) {
                 end = ITJ_CSV_TRUE;
             } else {
                 bytes_read += pump_ret;
+                continue;
             }
         }
 
         __int64 cycles_after_work = __rdtsc();
-        __int64 cycles_diff = cycles_after_work - cycles_start_of_loop;
-
+        __int64 cycles_diff = cycles_after_next_value - cycles_start_of_loop;
 
         if (num_values < NUM_BUFFERED_CYCLES) {
             buffered_cycles[num_values] = cycles_diff;
@@ -384,18 +378,14 @@ int main(int argc, char *argv[]) {
         num_values++;
 
 
-#if 0
         if (value.is_end_of_line) {
             ++num_lines;
             if (num_columns == -1) {
                 num_columns = value.idx + 1;
             }
         }
-#endif
 
         if (end) {
-            break;
-        } else if (csv.read_used != csv.read_max) {
             break;
         }
     }
@@ -415,6 +405,10 @@ int main(int argc, char *argv[]) {
     }
 
     mean /= total;
+
+    sitrep("The number of iterations %llu\n", num_values);
+    sitrep("The number of lines %llu\n", num_lines);
+    sitrep("The number of columns %llu\n", num_columns);
 
     sitrep("The mean cycle amount for job is %llu\n", mean);
     sitrep("The mean in nanoseconds for job is %0.2f\n", (double)mean * multiplier);

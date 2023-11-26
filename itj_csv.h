@@ -53,22 +53,17 @@ typedef enum itj_csv_state_name {
     ITJ_CSV_STATE_EOF,
 } itj_csv_state_name_t;
 
-typedef struct itj_csv_value {
+typedef struct itj_csv_string {
     itj_csv_u8 *base;
     itj_csv_u32 len;
+} itj_csv_string_t;
+
+typedef struct itj_csv_value {
+    struct itj_csv_string data;
     itj_csv_bool is_end_of_line;
-    itj_csv_bool is_end_of_data;
     itj_csv_bool need_data;
     itj_csv_umax idx;
 } itj_csv_value_t;
-
-typedef struct itj_csv_header {
-    itj_csv_u32 num_columns;
-    itj_csv_u32 max;
-    itj_csv_u8 *base;
-    itj_csv_u8 **names;
-    itj_csv_u32 *lens;
-} itj_csv_header_t;
 
 struct itj_csv_profiler {
     __int64 num_iter;
@@ -135,292 +130,122 @@ itj_csv_umax itj_csv_contract_double_quotes(itj_csv_u8 *start, itj_csv_umax max)
     return new_len;
 }
 
-itj_csv_bool itj_csv_parse_header(struct itj_csv *csv, struct itj_csv_header *header) {
-    header->num_columns = 0;
-
-    itj_csv_bool in_quotes = ITJ_CSV_FALSE;
-    itj_csv_u8 delim = csv->delimiter;
-
-    itj_csv_umax i = csv->read_iter;
-    itj_csv_umax max = csv->read_used;
-    for (; i < max; ++i) {
-        itj_csv_u8 ch = csv->read_base[i];
-
-        if (ch == '\0') {
-            break;
-        }
-
-        if (in_quotes) {
-            if (ch == '"') {
-                if (i + 1 < max) {
-                    itj_csv_u8 ch_next = csv->read_base[i + 1];
-                    if (ch_next != '"') {
-                        in_quotes = ITJ_CSV_FALSE;
-                    } else {
-                        i += 1;
-                    }
-                } else {
-                    in_quotes = ITJ_CSV_FALSE;
-                }
-            }
-        } else {
-            if (ch == delim) {
-                ++header->num_columns;
-            } else if (ch == '"') {
-                if (i + 1 < max) {
-                    itj_csv_u8 ch_next = csv->read_base[i + 1];
-                    if (ch_next != '"') {
-                        in_quotes = ITJ_CSV_TRUE;
-                    } else {
-                        i += 1;
-                    }
-                } else {
-                    in_quotes = ITJ_CSV_TRUE;
-                }
-            } else if (ch == '\r') {
-                if (i + 1 < max) {
-                    itj_csv_u8 ch_next = csv->read_base[i + 1];
-                    if (ch_next == '\n') {
-                        break;
-                    }
-                }
-            } else if (ch == '\n') {
-                break;
-            }
-        }
-    }
-
-    ++header->num_columns;
-
-    header->max = i;
-    header->base = (itj_csv_u8 *)ITJ_CSV_ALLOC(header->user_mem_ptr, header->max);
-    if (!header->base) {
-        return ITJ_CSV_FALSE;
-    }
-
-
-    header->names = (itj_csv_u8 **)ITJ_CSV_ALLOC(header->user_mem_ptr, header->num_columns * sizeof(*header->names));
-    if (!header->names) {
-        return ITJ_CSV_FALSE;
-    }
-    header->lens = (itj_csv_u32 *)ITJ_CSV_ALLOC(header->user_mem_ptr, header->num_columns * sizeof(*header->lens));
-    if (!header->lens) {
-        return ITJ_CSV_FALSE;
-    }
-
-    itj_csv_bool got_doubles = ITJ_CSV_FALSE;
-
-    itj_csv_u32 column_iter = 0;
-    itj_csv_u32 len = 0;
-
-    i = csv->read_iter;
-    ITJ_CSV_MEMCPY(header->base, &csv->read_base[i], header->max);
-    itj_csv_u8 *ptr = header->base;
-    max = csv->read_used;
-    for (; i < max; ++i) {
-        itj_csv_u8 ch = csv->read_base[i];
-
-        if (ch == '\0') {
-            break;
-        }
-
-        if (in_quotes) {
-            if (ch == '"') {
-                if (i + 1 < max) {
-                    itj_csv_u8 ch_next = csv->read_base[i + 1];
-                    if (ch_next != '"') {
-                        in_quotes = ITJ_CSV_FALSE;
-                    } else {
-                        i += 1;
-                        len += 2;
-                        got_doubles = ITJ_CSV_TRUE;
-                    }
-                } else {
-                    in_quotes = ITJ_CSV_FALSE;
-                }
-            } else {
-                len++;
-            }
-        } else {
-            if (ch == delim) {
-                if (got_doubles) {
-                    len = itj_csv_contract_double_quotes(ptr, len);
-                    got_doubles = ITJ_CSV_FALSE;
-                }
-                header->names[column_iter] = ptr;
-                header->lens[column_iter] = len;
-                column_iter++;
-
-                if (column_iter > header->num_columns) {
-                    break;
-                }
-
-                len = 0;
-                ptr = &header->base[i + 1];
-            } else if (ch == '"') {
-                in_quotes = ITJ_CSV_TRUE;
-                len = 0;
-                ptr = &header->base[i + 1];
-            } else if (ch == '\r') {
-                if (i + 1 < max) {
-                    itj_csv_u8 ch_next = csv->read_base[i + 1];
-                    if (ch_next == '\n') {
-                        i = i + 2;
-                        if (got_doubles) {
-                            len = itj_csv_contract_double_quotes(ptr, len);
-                            got_doubles = ITJ_CSV_FALSE;
-                        }
-                        header->names[column_iter] = ptr;
-                        header->lens[column_iter] = len;
-                        break;
-                    }
-                }
-            } else if (ch == '\n') {
-                i = i + 1;
-                if (got_doubles) {
-                    len = itj_csv_contract_double_quotes(ptr, len);
-                    got_doubles = ITJ_CSV_FALSE;
-                }
-                header->names[column_iter] = ptr;
-                header->lens[column_iter] = len;
-                break;
-            } else {
-                len++;
-            }
-        }
-    }
-
-    csv->read_iter = i;
-
-    return ITJ_CSV_TRUE;
-}
-
-
-
-struct itj_csv_value itj_csv_get_next_value(struct itj_csv *csv) {
-    csv->profiler.num_iter += 1;
-
+struct itj_csv_value itj_csv_parse_quotes(struct itj_csv *csv, itj_csv_umax i) {
     csv->prev_read_iter = csv->read_iter;
-
     struct itj_csv_value rv;
-    rv.base = NULL;
-    rv.len = 0;
+    i += 1; // Expecting " to be the first character
+    rv.data.base = &csv->read_base[i];
+    rv.data.len = 0;
     rv.is_end_of_line = ITJ_CSV_FALSE;
-    rv.is_end_of_data = ITJ_CSV_FALSE;
     rv.need_data = ITJ_CSV_FALSE;
     rv.idx = csv->idx;
 
-    itj_csv_u8 delim = csv->delimiter;
-    itj_csv_bool was_in_quotes = ITJ_CSV_FALSE;
-    itj_csv_bool in_quotes = ITJ_CSV_FALSE;
-    itj_csv_u32 len = 0;
-    itj_csv_umax i = csv->read_iter;
-    itj_csv_u8 *ptr = &csv->read_base[i];
     itj_csv_bool got_doubles = ITJ_CSV_FALSE;
-
-    __int64 cycles_main_loop_start = __rdtsc();
-
     itj_csv_umax max = csv->read_used;
     for (; i < max; ++i) {
         itj_csv_u8 ch = csv->read_base[i];
-
-        if (in_quotes) {
-            if (ch == '"') {
-                if (i + 1 < max) {
-                    itj_csv_u8 ch_next = csv->read_base[i + 1];
-                    if (ch_next != '"') {
-                        in_quotes = ITJ_CSV_FALSE;
-                        was_in_quotes = ITJ_CSV_TRUE;
-                    } else {
-                        i += 1;
-                        len += 2;
-                        got_doubles = ITJ_CSV_TRUE;
-                    }
-                } else {
-                    in_quotes = ITJ_CSV_FALSE;
-                    was_in_quotes = ITJ_CSV_TRUE;
-                }
+        if (ch == '"') {
+            if (i + 1 == max) {
+                rv.need_data = ITJ_CSV_TRUE;
+                return rv;
+            }
+            itj_csv_u8 ch_next = csv->read_base[i + 1];
+            if (ch_next == '"') {
+                got_doubles = ITJ_CSV_TRUE;
+                rv.data.len += 2;
+                i += 1;
             } else {
-                len++;
+                i += 1;
+                break;
             }
         } else {
-            if (ch == delim) {
-                if (!was_in_quotes) {
-                    i += 1;
-                }
-                break;
-            } else if (ch == '"') {
-                in_quotes = ITJ_CSV_TRUE;
-                ptr = &csv->read_base[i + 1];
-                len = 0;
-            } else if (ch == '\r') {
-                if (i + 1 < max) {
-                    itj_csv_u8 ch_next = csv->read_base[i + 1];
-                    if (ch_next == '\n') {
-                        i = i + 2;
-                        rv.is_end_of_line = ITJ_CSV_TRUE;
-                        break;
-                    }
-                }
-            } else if (ch == '\n') {
-                i = i + 1;
-                rv.is_end_of_line = ITJ_CSV_TRUE;
-                break;
-            } else if (!was_in_quotes) {
-                len++;
-            }
+            rv.data.len += 1;
         }
     }
 
-    __int64 cycles_main_loop_end = __rdtsc();
-    __int64 cycles_main_loop_diff = cycles_main_loop_end - cycles_main_loop_start;
-
-    csv->profiler.main_loop_avg += (cycles_main_loop_diff - csv->profiler.main_loop_avg) / csv->profiler.num_iter;
-
-
-    rv.base = ptr;
-    rv.len = len;
-
-
-    if (was_in_quotes) {
-        __int64 cycles_was_in_quotes_start = __rdtsc();
-        for (; i < max; ++i) {
-            itj_csv_u8 ch = csv->read_base[i];
-            if (ch == '\0') {
-                break;
-            }
-            if (ch == '\n') {
-                rv.is_end_of_line = ITJ_CSV_TRUE;
-                ++i;
-                break;
-            }
-            if (ch == delim) {
-                ++i;
-                break;
-            }
-        }
-
-        __int64 cycles_was_in_quotes_end = __rdtsc();
-        __int64 cycles_was_in_quotes_diff = cycles_was_in_quotes_end - cycles_was_in_quotes_start;
-        csv->profiler.was_in_quotes_avg += (cycles_was_in_quotes_diff - csv->profiler.was_in_quotes_avg) / csv->profiler.num_iter;
-    }
-
-    if (i == max) {
+    if (i >= max) {
         rv.need_data = ITJ_CSV_TRUE;
         return rv;
     }
 
+    for (; i < max; ++i) {
+        itj_csv_u8 ch = csv->read_base[i];
+        if (ch == '\n') {
+            rv.is_end_of_line = ITJ_CSV_TRUE;
+            i += 1;
+            break;
+        }
+        if (ch == csv->delimiter) {
+            ++i;
+            break;
+        }
+    }
 
-    csv->idx += 1;
-    csv->read_iter = i;
+    if (i >= max) {
+        // This is a bad case. Because we know the next token, but have to revert to be consistent
+        rv.need_data = ITJ_CSV_TRUE;
+        return rv;
+    }
 
     if (got_doubles) {
-        __int64 cycles_got_doubles_start = __rdtsc();
-        rv.len = itj_csv_contract_double_quotes(rv.base, rv.len);
-        __int64 cycles_got_doubles_end = __rdtsc();
-        __int64 cycles_got_doubles_diff = cycles_got_doubles_end - cycles_got_doubles_start;
+        rv.data.len = itj_csv_contract_double_quotes(rv.data.base, rv.data.len);
+    }
 
-        csv->profiler.got_doubles_avg += (cycles_got_doubles_diff - csv->profiler.got_doubles_avg) / csv->profiler.num_iter;
+    csv->read_iter = i;
+    return rv;
+}
+
+struct itj_csv_value itj_csv_parse_value(struct itj_csv *csv, itj_csv_umax i) {
+    csv->prev_read_iter = csv->read_iter;
+    struct itj_csv_value rv;
+    rv.data.base = &csv->read_base[i];
+    rv.data.len = 0;
+    rv.is_end_of_line = ITJ_CSV_FALSE;
+    rv.need_data = ITJ_CSV_FALSE;
+    rv.idx = csv->idx;
+
+    itj_csv_umax max = csv->read_used;
+    for (; i < max; ++i) {
+        itj_csv_u8 ch = csv->read_base[i];
+        if (ch == '"') {
+            return itj_csv_parse_quotes(csv, i);
+        } else if (ch == csv->delimiter) {
+            i += 1;
+            csv->read_iter = i;
+            return rv;
+        } else if (ch == '\r') {
+            if (i + 1 == max) {
+                rv.need_data = ITJ_CSV_TRUE;
+                return rv;
+            }
+            itj_csv_u8 ch_next = csv->read_base[i + 1];
+            if (ch_next == '\n') {
+                i += 2;
+                rv.is_end_of_line = ITJ_CSV_TRUE;
+                csv->read_iter = i;
+                return rv;
+            } else {
+                rv.data.len += 1;
+            }
+        } else if (ch == '\n') {
+            rv.is_end_of_line = ITJ_CSV_TRUE;
+            i += 1;
+            csv->read_iter = i;
+            return rv;
+        } else {
+            rv.data.len += 1;
+        }
+    }
+
+    rv.need_data = ITJ_CSV_TRUE;
+    return rv;
+}
+
+struct itj_csv_value itj_csv_get_next_value(struct itj_csv *csv) {
+    struct itj_csv_value rv = itj_csv_parse_value(csv, csv->read_iter);
+
+    if (!rv.need_data) {
+        csv->idx += 1;
     }
 
     return rv;
@@ -443,14 +268,17 @@ itj_csv_umax itj_csv_pump_stdio(struct itj_csv *csv) {
         if (csv->read_iter == csv->prev_read_iter) {
             if (csv->read_used > csv->read_iter) {
                 diff = csv->read_used - csv->read_iter;
-                if (diff < csv->read_max) {
+                if (diff <= csv->read_max) {
                     ITJ_CSV_MEMCPY(csv->read_base, csv->read_base + csv->read_iter, diff);
+                } else {
+                    return 0;
                 }
             }
         }
     }
 
     csv->read_iter = 0;
+    csv->prev_read_iter = 0;
 
     do {
         ret = fread(csv->read_base + diff + total_read, 1, csv->read_max - diff - total_read, csv->fh);
