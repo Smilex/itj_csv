@@ -65,15 +65,7 @@ typedef struct itj_csv_value {
     itj_csv_umax idx;
 } itj_csv_value_t;
 
-struct itj_csv_profiler {
-    __int64 num_iter;
-    __int64 main_loop_avg;
-    __int64 was_in_quotes_avg;
-    __int64 got_doubles_avg;
-};
-
 typedef struct itj_csv {
-    struct itj_csv_profiler profiler;
     itj_csv_u8 delimiter;
     itj_csv_umax read_iter;
     itj_csv_umax prev_read_iter;
@@ -303,11 +295,6 @@ itj_csv_bool itj_csv_open_fp(struct itj_csv *csv_out, FILE *fh, void *mem_buf, i
     csv_out->fh = fh;
     csv_out->user_mem_ptr = user_mem_ptr;
     csv_out->idx = 0;
-
-    csv_out->profiler.main_loop_avg = 0;
-    csv_out->profiler.was_in_quotes_avg = 0;
-    csv_out->profiler.got_doubles_avg = 0;
-    csv_out->profiler.num_iter = 0;
 
     return ITJ_CSV_TRUE;
 }

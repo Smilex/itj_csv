@@ -151,22 +151,13 @@ int main(int argc, char *argv[]) {
     value = itj_csv_get_next_value(&csv); // Skip Last Updated Date Value
     itj_csv_ignore_newlines(&csv);
 
-    struct itj_csv_header header;
-    if (!itj_csv_parse_header(&csv, &header)) {
-        printf("Unable to parse header from '%s'\n", csv_path);
-        return EXIT_FAILURE;
-    }
-
+    itj_csv_s32 num_columns = -1;
     itj_csv_u32 column_offset = 4;
     itj_csv_bool end = ITJ_CSV_FALSE;
     struct entry ent;
     for (;;) {
-        itj_csv_umax column = (csv.idx - column_offset) % header.num_columns;
 
         value = itj_csv_get_next_value(&csv);
-        if (value.is_end_of_data) {
-            break;
-        }
         if (value.need_data) {
             pump_ret = itj_csv_pump_stdio(&csv);
             if (pump_ret == 0) {
@@ -195,34 +186,40 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
+        itj_csv_umax column;
+        if (num_columns == -1) {
+            column = value.idx - column_offset;
+        } else {
+            column = (value.idx - column_offset) % num_columns;
+        }
 
 
 
         if (column == 0) {
-            if (!string_alloc(&ent.country_name, value.base, value.len)) {
+            if (!string_alloc(&ent.country_name, value.data.base, value.data.len)) {
                 printf("Unable to allocate memory for string\n");
                 return EXIT_FAILURE;
             }
         } else if (column == 1) {
-            if (!string_alloc(&ent.country_code, value.base, value.len)) {
+            if (!string_alloc(&ent.country_code, value.data.base, value.data.len)) {
                 printf("Unable to allocate memory for string\n");
                 return EXIT_FAILURE;
             }
         } else if (column == 2) {
-            if (!string_alloc(&ent.indicator_name, value.base, value.len)) {
+            if (!string_alloc(&ent.indicator_name, value.data.base, value.data.len)) {
                 printf("Unable to allocate memory for string\n");
                 return EXIT_FAILURE;
             }
         } else if (column == 3) {
-            if (!string_alloc(&ent.indicator_code, value.base, value.len)) {
+            if (!string_alloc(&ent.indicator_code, value.data.base, value.data.len)) {
                 printf("Unable to allocate memory for string\n");
                 return EXIT_FAILURE;
             }
         } else if (column > 3 && column <= 4 + (DATE_END - DATE_START)) {
             float val = NAN;
-            if (value.len > 0) {
-                char *start = (char *)value.base;
-                char *expected_end = start + value.len;
+            if (value.data.len > 0) {
+                char *start = (char *)value.data.base;
+                char *expected_end = start + value.data.len;
                 char *end;
 
                 val = strtof(start, &end);
