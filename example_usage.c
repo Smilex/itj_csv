@@ -8,7 +8,7 @@
 #include <math.h>
 #include <ctype.h>
 
-#define ITJ_CSV_IMPLEMENTATION
+#define ITJ_CSV_IMPLEMENTATION_AVX2
 #include "itj_csv.h"
 
 #define KB(x) (x * 1024)
@@ -172,7 +172,7 @@ int main(int argc, char *argv[]) {
     }
     struct entry ent = {0};
     for (;;) {
-        value = itj_csv_get_next_value(&csv);
+        value = itj_csv_get_next_value_avx2(&csv);
         if (value.need_data) {
             pump_ret = itj_csv_pump_stdio(&csv);
             if (pump_ret == 0) {
@@ -213,10 +213,6 @@ int main(int argc, char *argv[]) {
                 char *end;
 
                 val = strtof(start, &end);
-
-                if (end != expected_end) {
-                    printf("WARNING: floating point value didn't get parsed to the point we expected. Result: %f\n", val);
-                }
             }
 
             itj_csv_umax idx = (column - 4);

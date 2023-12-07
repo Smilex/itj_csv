@@ -13,7 +13,7 @@
 #include <windows.h>
 #endif
 
-#define ITJ_CSV_IMPLEMENTATION
+#define ITJ_CSV_IMPLEMENTATION_AVX2
 #include "itj_csv.h"
 
 #define KB(x) (x * 1024)
@@ -580,6 +580,36 @@ int main(int argc, char *argv[]) {
 
     print_total(bytes_read, time_start_of_avx2, time_end_of_avx2);
     itj_csv_close_fh(&csv);
+
+    fh = fopen(generated_csv_path, "rb");
+    if (!fh) {
+        printf("Unable to open %s for the second reference reading\n", generated_csv_path);
+        return EXIT_FAILURE;
+    }
+
+    double time_start_of_reference2 = get_time_ms();
+
+    bytes_read = 0;
+    for (;;) {
+        itj_csv_smax bytes = fread(buffer, 1, buffer_max, fh);
+        if (bytes < 0) {
+            printf("Unable to read all of %s\n", generated_csv_path);
+            return EXIT_FAILURE;
+        }
+
+        if (bytes == 0) {
+            break;
+        }
+
+        bytes_read += bytes;
+    }
+
+    double time_end_of_reference2 = get_time_ms();
+
+    sitrep("Reading generated csv file without any work as reference, a final time\n");
+    print_total(bytes_read, time_start_of_reference2, time_end_of_reference2);
+
+    fclose(fh);
 
     printf("Finished. Press any key to quit\n");
     getc(stdin);

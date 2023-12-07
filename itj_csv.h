@@ -1,5 +1,20 @@
 /*
+ * This is a streaming CSV reader, with AVX and AVX2 support, written in a stb header style
+ *
  * LICENSE available at the bottom
+ *
+ * USAGE: Look up example_usage.c or test.c
+ *  but here's a summary
+ *   itj_csv_open();
+ *   itj_csv_pump_stdio();
+ *   for (;;) {
+ *    value = itj_csv_get_next_value();
+ *    if (value.need_data) {
+ *      itj_csv_pump_stdio();
+ *    }
+ *
+ *    USE "value" here
+ *   }
  */
 
 #ifndef ITJ_CSV_NO_STD
@@ -7,10 +22,21 @@
 #include <stdio.h>
 #endif
 
+#ifdef ITJ_CSV_IMPLEMENTATION_AVX2
+#define ITJ_CSV_IMPLEMENTATION_AVX
+#endif
+
+#ifdef ITJ_CSV_IMPLEMENTATION_AVX
+#define ITJ_CSV_IMPLEMENTATION
+#endif
+
+#if defined(ITJ_CSV_IMPLEMENTATION_AVX) || defined(ITJ_CSV_IMPLEMENTATION_AVX2)
 #include <immintrin.h>
 
 #ifdef _MSC_VER
 #include <windows.h>
+#endif
+
 #endif
 
 #if !(ITJ_CSV_32BIT || ITJ_CSV_64BIT)
@@ -128,6 +154,7 @@ itj_csv_umax itj_csv_contract_double_quotes(itj_csv_u8 *start, itj_csv_umax max)
     return new_len;
 }
 
+#if defined(ITJ_CSV_IMPLEMENTATION_AVX) || defined(ITJ_CSV_IMPLEMENTATION_AVX2)
 #ifdef _MSC_VER
 inline itj_csv_u32 itj_csv_ffs(itj_csv_u32 value) {
     unsigned long pos;
@@ -137,7 +164,9 @@ inline itj_csv_u32 itj_csv_ffs(itj_csv_u32 value) {
 #else
 #define itj_csv_ffs(value) __builtin_ffs(value);
 #endif
+#endif
 
+#ifdef ITJ_CSV_IMPLEMENTATION
 struct itj_csv_value itj_csv_parse_quotes(struct itj_csv *csv, itj_csv_umax i) {
     csv->prev_read_iter = csv->read_iter;
     struct itj_csv_value rv;
@@ -254,6 +283,10 @@ struct itj_csv_value itj_csv_get_next_value(struct itj_csv *csv) {
 
     return rv;
 }
+
+#endif // ITJ_CSV_IMPLEMENTATION
+
+#ifdef ITJ_CSV_IMPLEMENTATION_AVX
 
 struct itj_csv_value itj_csv_parse_quotes_avx(struct itj_csv *csv, itj_csv_umax i) {
     csv->prev_read_iter = csv->read_iter;
@@ -417,6 +450,10 @@ struct itj_csv_value itj_csv_get_next_value_avx(struct itj_csv *csv) {
     return itj_csv_parse_value_avx(csv, csv->read_iter);
 }
 
+#endif // ITJ_CSV_IMPLEMENTATION_AVX
+
+#ifdef ITJ_CSV_IMPLEMENTATION_AVX2
+
 struct itj_csv_value itj_csv_parse_quotes_avx2(struct itj_csv *csv, itj_csv_umax i) {
     csv->prev_read_iter = csv->read_iter;
     struct itj_csv_value rv;
@@ -579,6 +616,8 @@ struct itj_csv_value itj_csv_get_next_value_avx2(struct itj_csv *csv) {
     return itj_csv_parse_value_avx2(csv, csv->read_iter);
 }
 
+#endif // ITJ_CSV_IMPLEMENTATION_AVX2
+
 #ifndef ITJ_CSV_NO_STD
 
 void itj_csv_close_fh(struct itj_csv *csv) {
@@ -650,7 +689,6 @@ itj_csv_bool itj_csv_open(struct itj_csv *csv_out, const char *filepath, itj_csv
 
     return rv;
 }
-
 
 
 #endif // ITJ_CSV_NO_STD

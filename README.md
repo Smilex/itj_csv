@@ -1,6 +1,20 @@
 # itj_csv
 A header only C CSV parsing library, in style of the stb headers
 
+# Performance numbers
+These numbers use a read buffer of 2 MB and a CSV file about 1.4 GB
+
+Reading generated csv file without any work as reference
+Read 1522287681 total bytes. 1186.291 MB per second
+The following numbers are for the non-SIMD version
+Read 1522287681 total bytes. 1653.686 MB per second
+The following numbers are for the AVX version
+Read 1522287681 total bytes. 1583.137 MB per second
+The following numbers are for the AVX2 version
+Read 1522287681 total bytes. 1792.471 MB per second
+Reading generated csv file without any work as reference, a final time
+Read 1522287681 total bytes. 3674.949 MB per second
+
 # License
 ------------------------------------------------------------------------------
 This software is available under 2 licenses -- choose whichever you prefer.
