@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 #define NUM_COLUMNS 500
-#define NUM_ROWS (10 * 1000)
+#define NUM_ROWS (20 * 1000)
 #define MAX_WORD_SIZE 300
 #define MIN_WORD_SIZE 4 // If it becomes "quoted" then it erases two. So 2 is minimum
 

@@ -9,6 +9,10 @@
 
 #include <immintrin.h>
 
+#ifdef _MSC_VER
+#include <windows.h>
+#endif
+
 #if !(ITJ_CSV_32BIT || ITJ_CSV_64BIT)
 #if defined(__x86_64__) || defined(_M_X64) || defined(__ppc64__)
 #define ITJ_CSV_64BIT
@@ -125,12 +129,13 @@ itj_csv_umax itj_csv_contract_double_quotes(itj_csv_u8 *start, itj_csv_umax max)
 }
 
 inline itj_csv_u32 itj_csv_ffs(itj_csv_u32 value) {
-    itj_csv_u32 pos = 1;
-    while (!(value & 1)) {
-        value >>= 1;
-        pos++;
-    }
-    return pos;
+#ifdef _MSC_VER
+    unsigned long pos;
+    BitScanForward(&pos, value);
+    return pos + 1;
+#else
+    return __builtin_ffs(value);
+#endif
 }
 
 struct itj_csv_value itj_csv_parse_quotes(struct itj_csv *csv, itj_csv_umax i) {

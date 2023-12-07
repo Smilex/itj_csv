@@ -8,9 +8,9 @@
 
 #include <immintrin.h>
 
+#ifdef IS_WINDOWS
 #include <windows.h>
-
-#include <tracy/TracyC.h>
+#endif
 
 #define ITJ_CSV_IMPLEMENTATION
 #include "itj_csv.h"
@@ -37,12 +37,12 @@ double get_time_ms() {
 }
 #else
 double get_time_ms() {
-    // TODO: Clock Monotonic
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1000000.0;
 }
 #endif
 
-
-TracyCZoneCtx zone_ctx;
 
 itj_csv_bool compare_strings(char *base1, itj_csv_umax len1, char *base2, itj_csv_umax len2) {
     if (len1 == len2) {
@@ -187,7 +187,6 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-    TracyCZone(zone_ctx, 1);
     g_sitrep_filepath = (char *)calloc(1, KB(10));
     if (!g_sitrep_filepath) {
         printf("Unable to allocate memory for sitrep filepath\n");
@@ -581,7 +580,6 @@ int main(int argc, char *argv[]) {
     print_total(bytes_read, time_start_of_avx2, time_end_of_avx2);
     itj_csv_close_fh(&csv);
 
-    TracyCZoneEnd(zone_ctx);
     printf("Finished. Press any key to quit\n");
     getc(stdin);
 
