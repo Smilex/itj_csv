@@ -128,15 +128,15 @@ itj_csv_umax itj_csv_contract_double_quotes(itj_csv_u8 *start, itj_csv_umax max)
     return new_len;
 }
 
-inline itj_csv_u32 itj_csv_ffs(itj_csv_u32 value) {
 #ifdef _MSC_VER
+inline itj_csv_u32 itj_csv_ffs(itj_csv_u32 value) {
     unsigned long pos;
     BitScanForward(&pos, value);
     return pos + 1;
-#else
-    return __builtin_ffs(value);
-#endif
 }
+#else
+#define itj_csv_ffs(value) __builtin_ffs(value);
+#endif
 
 struct itj_csv_value itj_csv_parse_quotes(struct itj_csv *csv, itj_csv_umax i) {
     csv->prev_read_iter = csv->read_iter;

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <time.h>
 
 #define NUM_COLUMNS 500
 #define NUM_ROWS (20 * 1000)
@@ -42,7 +43,7 @@ int main(int argc, char *argv[]) {
 
     setvbuf(fh, NULL, _IOFBF, 1024 * 1024 * 1024);
 
-    srand(time(NULL));
+    g_seed = time(NULL);
 
     for (unsigned long long row = 0; row < NUM_ROWS; ++row) {
         for (unsigned long long column = 0; column < NUM_COLUMNS; ++column) {

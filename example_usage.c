@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <ctype.h>
 
 #define ITJ_CSV_IMPLEMENTATION
 #include "itj_csv.h"

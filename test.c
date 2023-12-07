@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include <time.h>
 
 #include <immintrin.h>
 
@@ -177,7 +178,7 @@ void test_correctness(struct itj_csv_value value, itj_csv_smax num_columns, itj_
 
 int main(int argc, char *argv[]) {
     printf("Press any key to start\n");
-    getch(stdin);
+    getc(stdin);
 
 #ifdef IS_WINDOWS
     {
@@ -192,9 +193,9 @@ int main(int argc, char *argv[]) {
         printf("Unable to allocate memory for sitrep filepath\n");
         return EXIT_FAILURE;
     }
-    snprintf(g_sitrep_filepath, KB(10), "itj_csv_test_%d.log", time(NULL));
+    snprintf(g_sitrep_filepath, KB(10), "itj_csv_test_%lld.log", time(NULL));
 
-    __int64 *buffered_cycles = (__int64 *)calloc(1, NUM_BUFFERED_CYCLES * sizeof(*buffered_cycles));
+    itj_csv_smax *buffered_cycles = (itj_csv_smax *)calloc(1, NUM_BUFFERED_CYCLES * sizeof(*buffered_cycles));
     if (!buffered_cycles) {
         printf("Unable to allocate memory for buffered cycles. It might work to lower NUM_BUFFERED_CYCLES\n");
         return EXIT_FAILURE;
@@ -417,7 +418,7 @@ int main(int argc, char *argv[]) {
 
     num_columns = -1;
     num_lines = 0;
-    __int64 num_values = 0;
+    itj_csv_smax num_values = 0;
     double time_start_of_standard = get_time_ms();
     for (;;) {
         struct itj_csv_value value = itj_csv_get_next_value_avx2(&csv);
