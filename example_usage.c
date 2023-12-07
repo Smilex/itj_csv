@@ -152,11 +152,26 @@ int main(int argc, char *argv[]) {
     value = itj_csv_get_next_value(&csv); // Skip Last Updated Date Value
     itj_csv_ignore_newlines(&csv);
 
-    itj_csv_s32 num_columns = -1;
     itj_csv_u32 column_offset = 4;
-    struct entry ent;
+    itj_csv_s32 num_columns = -1;
     for (;;) {
+        value = itj_csv_get_next_value(&csv);
+        if (value.need_data) {
+            pump_ret = itj_csv_pump_stdio(&csv);
+            if (pump_ret == 0) {
+                return EXIT_FAILURE;
+            } else {
+                continue;
+            }
+        }
 
+        if (value.is_end_of_line) {
+            num_columns = (value.idx + 1) - column_offset;
+            break;
+        }
+    }
+    struct entry ent = {0};
+    for (;;) {
         value = itj_csv_get_next_value(&csv);
         if (value.need_data) {
             pump_ret = itj_csv_pump_stdio(&csv);
@@ -167,32 +182,7 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        if (value.is_end_of_line) {
-            if (g_ctx->entries_used == g_ctx->entries_max) {
-                g_ctx->entries_max += 512;
-                void *new_base = realloc(g_ctx->entries, g_ctx->entries_max * sizeof(*g_ctx->entries));
-                if (!new_base) {
-                    printf("Unable to allocate memory for entire csv file in csv parsing loop\n");
-                    return EXIT_FAILURE;
-                }
-
-                g_ctx->entries = (struct entry *)new_base;
-            }
-
-            g_ctx->entries[g_ctx->entries_used] = ent;
-            ++g_ctx->entries_used;
-
-            memset(&ent, 0, sizeof(ent));
-            continue;
-        }
-
-        itj_csv_umax column;
-        if (num_columns == -1) {
-            column = value.idx - column_offset;
-        } else {
-            column = (value.idx - column_offset) % num_columns;
-        }
-
+        itj_csv_umax column = (value.idx - column_offset) % num_columns;
 
 
         if (column == 0) {
@@ -231,6 +221,24 @@ int main(int argc, char *argv[]) {
 
             itj_csv_umax idx = (column - 4);
             ent.dates[idx] = val;
+        }
+
+        if (value.is_end_of_line) {
+            if (g_ctx->entries_used == g_ctx->entries_max) {
+                g_ctx->entries_max += 512;
+                void *new_base = realloc(g_ctx->entries, g_ctx->entries_max * sizeof(*g_ctx->entries));
+                if (!new_base) {
+                    printf("Unable to allocate memory for entire csv file in csv parsing loop\n");
+                    return EXIT_FAILURE;
+                }
+
+                g_ctx->entries = (struct entry *)new_base;
+            }
+
+            g_ctx->entries[g_ctx->entries_used] = ent;
+            ++g_ctx->entries_used;
+
+            memset(&ent, 0, sizeof(ent));
         }
     }
 
