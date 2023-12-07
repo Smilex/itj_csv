@@ -34,7 +34,7 @@
 #include <immintrin.h>
 
 #ifdef _MSC_VER
-#include <windows.h>
+#include <intrin.h>
 #endif
 
 #endif
@@ -158,11 +158,11 @@ itj_csv_umax itj_csv_contract_double_quotes(itj_csv_u8 *start, itj_csv_umax max)
 #ifdef _MSC_VER
 inline itj_csv_u32 itj_csv_ffs(itj_csv_u32 value) {
     unsigned long pos;
-    BitScanForward(&pos, value);
+    _BitScanForward(&pos, value);
     return pos + 1;
 }
 #else
-#define itj_csv_ffs(value) __builtin_ffs(value);
+#define itj_csv_ffs(value) __builtin_ffs(value)
 #endif
 #endif
 
@@ -580,6 +580,7 @@ struct itj_csv_value itj_csv_parse_value_avx2(struct itj_csv *csv, itj_csv_umax 
             if (quote_mask != 0) {
                 itj_csv_umax first_quote = itj_csv_ffs(quote_mask) - 1;
                 if (first_quote < first_delim) {
+                    i += first_quote;
                     return itj_csv_parse_quotes_avx2(csv, i);
                 }
             }
