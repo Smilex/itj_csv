@@ -153,7 +153,6 @@ int main(int argc, char *argv[]) {
 
     itj_csv_s32 num_columns = -1;
     itj_csv_u32 column_offset = 4;
-    itj_csv_bool end = ITJ_CSV_FALSE;
     struct entry ent;
     for (;;) {
 
@@ -161,7 +160,7 @@ int main(int argc, char *argv[]) {
         if (value.need_data) {
             pump_ret = itj_csv_pump_stdio(&csv);
             if (pump_ret == 0) {
-                end = ITJ_CSV_TRUE;
+                break;
             } else {
                 continue;
             }
@@ -231,10 +230,6 @@ int main(int argc, char *argv[]) {
 
             itj_csv_umax idx = (column - 4);
             ent.dates[idx] = val;
-        }
-
-        if (end) {
-            break;
         }
     }
 

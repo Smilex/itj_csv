@@ -9,13 +9,16 @@
 
 #define NUM_COLUMNS 500
 #define NUM_ROWS (10 * 1000)
-#define MAX_WORD_SIZE 30
+#define MAX_WORD_SIZE 300
 #define MIN_WORD_SIZE 4 // If it becomes "quoted" then it erases two. So 2 is minimum
 
 #define CHARACTERS "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
-uintmax_t inline our_rand() {
-    return rand(); // I was unable to write a faster rand that wasn't boring
+uint32_t g_seed;
+
+uint32_t inline our_rand() {
+    g_seed = (214013*g_seed+2531011);
+    return (g_seed>>16)&0x7FFF;
 }
 
 int main(int argc, char *argv[]) {

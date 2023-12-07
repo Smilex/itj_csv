@@ -101,6 +101,80 @@ void print_total(itj_csv_umax bytes_read, double time_start, double time_end) {
 
 }
 
+void test_correctness(struct itj_csv_value value, itj_csv_smax num_columns, itj_csv_smax *num_columns_out, itj_csv_u32 num_lines, itj_csv_u32 *num_lines_out) {
+    itj_csv_umax column; 
+    if (num_columns == -1) {
+        column = value.idx;
+    } else {
+        column = value.idx % num_columns;
+    }
+
+    if (column == 0) {
+        if (num_lines == 0) {
+            test_print("Is header[0] == column1");
+            test_print_result(compare_strings(value.data.base, value.data.len, "column1", 7));
+        } else if (num_lines == 1) {
+            test_print("Is the first column of the first row == row1_column1");
+            test_print_result(compare_strings(value.data.base, value.data.len, "row1_column1", 12));
+        } else if (num_lines == 2) {
+            test_print("Is the first column of the second row == row2_column1");
+            test_print_result(compare_strings(value.data.base, value.data.len, "row2_column1", 12));
+        }
+    } else if (column == 1) {
+        if (num_lines == 0) {
+            test_print("Is header[1] == column2");
+            test_print_result(compare_strings(value.data.base, value.data.len, "column2", 7));
+        } else if (num_lines == 1) {
+            test_print("Is the second column of the first row == row1_column2");
+            test_print_result(compare_strings(value.data.base, value.data.len, "row1_column2", 12));
+        } else if (num_lines == 2) {
+            test_print("Is the second column of the second row == row2_column2");
+            test_print_result(compare_strings(value.data.base, value.data.len, "row2_column2", 12));
+        }
+    } else if (column == 2) {
+        if (num_lines == 0) {
+            test_print("Is header[2] == column\\r\\n3");
+            test_print_result(compare_strings(value.data.base, value.data.len, "column\r\n3", 9));
+        } else if (num_lines == 1) {
+            test_print("Is the third column of the first row == row1_column\\r\\n3");
+            test_print_result(compare_strings(value.data.base, value.data.len, "row1_column\r\n3", 14));
+        } else if (num_lines == 2) {
+            test_print("Is the third column of the second row == row2_column\\r\\n3");
+            test_print_result(compare_strings(value.data.base, value.data.len, "row2_column\r\n3", 14));
+        }
+    } else if (column == 3) {
+        if (num_lines == 0) {
+            test_print("Is header[3] == column\"4");
+            test_print_result(compare_strings(value.data.base, value.data.len, "column\"4", 8));
+        } else if (num_lines == 1) {
+            test_print("Is the fourth column of the first row == row1_column\"4");
+            test_print_result(compare_strings(value.data.base, value.data.len, "row1_column\"4", 13));
+        } else if (num_lines == 2) {
+            test_print("Is the fourth column of the second row == row2_column\"4");
+            test_print_result(compare_strings(value.data.base, value.data.len, "row2_column\"4", 13));
+        }
+    } else if (column == 4) {
+        if (num_lines == 0) {
+            test_print("Is header[4] == columnð");
+            test_print_result(compare_strings(value.data.base, value.data.len, "columnð", 8));
+        } else if (num_lines == 1) {
+            test_print("Is the fifth column of the first row == row1_columnð");
+            test_print_result(compare_strings(value.data.base, value.data.len, "row1_columnð", 13));
+        } else if (num_lines == 2) {
+            test_print("Is the fifth column of the second row == row2_columnð");
+            test_print_result(compare_strings(value.data.base, value.data.len, "row2_columnð", 13));
+        }
+    }
+
+    if (value.is_end_of_line) {
+        if (num_columns == -1) {
+            *num_columns_out = value.idx + 1;
+        }
+
+        *num_lines_out = num_lines + 1;
+    }
+}
+
 int main(int argc, char *argv[]) {
     printf("Press any key to start\n");
     getch(stdin);
@@ -193,7 +267,11 @@ int main(int argc, char *argv[]) {
     }
 
     printf("Running itj_csv correctness tests\n");
-    itj_csv_umax buffer_max = MB(512);
+
+    printf("Running standard correctness tests\n");
+    g_did_a_test_fail = ITJ_CSV_FALSE;
+
+    itj_csv_umax buffer_max = MB(2);
     void *buffer = calloc(1, buffer_max);
     if (!buffer) {
         printf("Unable to allocate memory for parsing buffer\n");
@@ -214,89 +292,73 @@ int main(int argc, char *argv[]) {
 
     itj_csv_bool end = ITJ_CSV_FALSE;
     itj_csv_u32 num_lines = 0;
-    itj_csv_s32 num_columns = 5;
+    itj_csv_smax num_columns = -1;
+    itj_csv_bool first = ITJ_CSV_TRUE;
     for (;;) {
         struct itj_csv_value value = itj_csv_get_next_value(&csv);
-        itj_csv_umax column = value.idx % num_columns;
         if (value.need_data) {
             pump_ret = itj_csv_pump_stdio(&csv);
             if (pump_ret == 0) {
-                end = ITJ_CSV_TRUE;
+                break;
             } else {
                 continue;
             }
         }
 
+        test_correctness(value, num_columns, &num_columns, num_lines, &num_lines);
 
-        if (column == 0) {
-            if (num_lines == 0) {
-                test_print("Is header[0] == column1");
-                test_print_result(compare_strings(value.data.base, value.data.len, "column1", 7));
-            } else if (num_lines == 1) {
-                test_print("Is the first column of the first row == row1_column1");
-                test_print_result(compare_strings(value.data.base, value.data.len, "row1_column1", 12));
-            } else if (num_lines == 2) {
-                test_print("Is the first column of the second row == row2_column1");
-                test_print_result(compare_strings(value.data.base, value.data.len, "row2_column1", 12));
-            }
-        } else if (column == 1) {
-            if (num_lines == 0) {
-                test_print("Is header[1] == column2");
-                test_print_result(compare_strings(value.data.base, value.data.len, "column2", 7));
-            } else if (num_lines == 1) {
-                test_print("Is the second column of the first row == row1_column2");
-                test_print_result(compare_strings(value.data.base, value.data.len, "row1_column2", 12));
-            } else if (num_lines == 2) {
-                test_print("Is the second column of the second row == row2_column2");
-                test_print_result(compare_strings(value.data.base, value.data.len, "row2_column2", 12));
-            }
-        } else if (column == 2) {
-            if (num_lines == 0) {
-                test_print("Is header[2] == column\\r\\n3");
-                test_print_result(compare_strings(value.data.base, value.data.len, "column\r\n3", 9));
-            } else if (num_lines == 1) {
-                test_print("Is the third column of the first row == row1_column\\r\\n3");
-                test_print_result(compare_strings(value.data.base, value.data.len, "row1_column\r\n3", 14));
-            } else if (num_lines == 2) {
-                test_print("Is the third column of the second row == row2_column\\r\\n3");
-                test_print_result(compare_strings(value.data.base, value.data.len, "row2_column\r\n3", 14));
-            }
-        } else if (column == 3) {
-            if (num_lines == 0) {
-                test_print("Is header[3] == column\"4");
-                test_print_result(compare_strings(value.data.base, value.data.len, "column\"4", 8));
-            } else if (num_lines == 1) {
-                test_print("Is the fourth column of the first row == row1_column\"4");
-                test_print_result(compare_strings(value.data.base, value.data.len, "row1_column\"4", 13));
-            } else if (num_lines == 2) {
-                test_print("Is the fourth column of the second row == row2_column\"4");
-                test_print_result(compare_strings(value.data.base, value.data.len, "row2_column\"4", 13));
-            }
-        } else if (column == 4) {
-            if (num_lines == 0) {
-                test_print("Is header[4] == columnð");
-                test_print_result(compare_strings(value.data.base, value.data.len, "columnð", 8));
-            } else if (num_lines == 1) {
-                test_print("Is the fifth column of the first row == row1_columnð");
-                test_print_result(compare_strings(value.data.base, value.data.len, "row1_columnð", 13));
-            } else if (num_lines == 2) {
-                test_print("Is the fifth column of the second row == row2_columnð");
-                test_print_result(compare_strings(value.data.base, value.data.len, "row2_columnð", 13));
+        if (value.is_end_of_line && first) {
+            test_print("Expecting 5 columns in header");
+            test_print_result(value.idx == 4);
+            first = ITJ_CSV_FALSE;
+        }
+
+    }
+
+    itj_csv_close_fh(&csv);
+
+    if (g_did_a_test_fail) {
+        sitrep("NOT ALL CORRECTNESS TESTS COMPLETED SUCCESSFULLY!\n");
+    } else {
+        sitrep("ALL CORRECTNESS TESTS COMPLETED SUCCESSFULL\n");
+    }
+
+    printf("Running AVX2 correctness tests\n");
+    g_did_a_test_fail = ITJ_CSV_FALSE;
+
+    if (!itj_csv_open(&csv, correctness_with_header_csv_path, correctness_with_header_csv_path_len, buffer, buffer_max, ITJ_CSV_DELIM_COMMA, NULL)) {
+        printf("Failed to initalize itj_csv struct to file, '%s'\n", correctness_with_header_csv_path);
+        return EXIT_FAILURE;
+    }
+
+    pump_ret = itj_csv_pump_stdio(&csv);
+    if (pump_ret == 0) {
+        printf("Unable to read from '%s'\n", correctness_with_header_csv_path);
+        return EXIT_FAILURE;
+    }
+
+    num_lines = 0;
+    num_columns = -1;
+    first = ITJ_CSV_TRUE;
+    for (;;) {
+        struct itj_csv_value value = itj_csv_get_next_value_avx2(&csv);
+        if (value.need_data) {
+            pump_ret = itj_csv_pump_stdio(&csv);
+            if (pump_ret == 0) {
+                break;
+            } else {
+                continue;
             }
         }
 
-        if (value.is_end_of_line) {
-            if (num_lines == 0) {
-                test_print("Expecting 5 columns in header");
-                test_print_result(value.idx == 4);
-            }
+        test_correctness(value, num_columns, &num_columns, num_lines, &num_lines);
 
-            ++num_lines;
+        if (value.is_end_of_line && first) {
+            test_print("Expecting 5 columns in header");
+            test_print_result(value.idx == 4);
+            first = ITJ_CSV_FALSE;
         }
 
-        if (end) {
-            break;
-        }
     }
 
     itj_csv_close_fh(&csv);
@@ -357,10 +419,9 @@ int main(int argc, char *argv[]) {
     num_columns = -1;
     num_lines = 0;
     __int64 num_values = 0;
-    end = ITJ_CSV_FALSE;
     double time_start_of_standard = get_time_ms();
     for (;;) {
-        struct itj_csv_value value = itj_csv_get_next_value(&csv);
+        struct itj_csv_value value = itj_csv_get_next_value_avx2(&csv);
 
 #if 0
         itj_csv_umax column;
@@ -374,7 +435,7 @@ int main(int argc, char *argv[]) {
         if (value.need_data) {
             pump_ret = itj_csv_pump_stdio(&csv);
             if (pump_ret == 0) {
-                end = ITJ_CSV_TRUE;
+                break;
             } else {
                 bytes_read += pump_ret;
                 continue;
@@ -390,10 +451,6 @@ int main(int argc, char *argv[]) {
 
         ++num_values;
 
-        if (end) {
-            break;
-        }
-
     }
     double time_end_of_standard = get_time_ms();
 
@@ -408,7 +465,124 @@ int main(int argc, char *argv[]) {
     sitrep("The number of lines %llu\n", num_lines);
     sitrep("The number of columns %llu\n", num_columns);
 
+    if (!itj_csv_open(&csv, generated_csv_path, generated_csv_path_len, buffer, buffer_max, ITJ_CSV_DELIM_COMMA, NULL)) {
+        printf("Failed to initalize itj_csv struct to file, '%s'\n", correctness_with_header_csv_path);
+        printf("Remember to generate a file for profiling first!\n");
+        return EXIT_FAILURE;
+    }
+
+    bytes_read = 0;
+    pump_ret = itj_csv_pump_stdio(&csv);
+    if (pump_ret == 0) {
+        printf("Unable to read from '%s'\n", generated_csv_path);
+        return EXIT_FAILURE;
+    }
+    bytes_read += pump_ret;
+
+    num_columns = -1;
+    num_lines = 0;
+    num_values = 0;
+    double time_start_of_avx = get_time_ms();
+    for (;;) {
+        struct itj_csv_value value = itj_csv_get_next_value_avx(&csv);
+
+#if 0
+        itj_csv_umax column;
+        if (num_columns == -1) {
+            column = value.idx;
+        } else {
+            column = value.idx % num_columns;
+        }
+#endif
+
+        if (value.need_data) {
+            pump_ret = itj_csv_pump_stdio(&csv);
+            if (pump_ret == 0) {
+                break;
+            } else {
+                bytes_read += pump_ret;
+                continue;
+            }
+        }
+
+        if (value.is_end_of_line) {
+            ++num_lines;
+            if (num_columns == -1) {
+                num_columns = value.idx + 1;
+            }
+        }
+
+        ++num_values;
+
+    }
+    double time_end_of_avx = get_time_ms();
+
+
+    sitrep("The following numbers are for the AVX version\n");
+
+    print_total(bytes_read, time_start_of_avx, time_end_of_avx);
+    itj_csv_close_fh(&csv);
+
+    if (!itj_csv_open(&csv, generated_csv_path, generated_csv_path_len, buffer, buffer_max, ITJ_CSV_DELIM_COMMA, NULL)) {
+        printf("Failed to initalize itj_csv struct to file, '%s'\n", correctness_with_header_csv_path);
+        printf("Remember to generate a file for profiling first!\n");
+        return EXIT_FAILURE;
+    }
+
+    bytes_read = 0;
+    pump_ret = itj_csv_pump_stdio(&csv);
+    if (pump_ret == 0) {
+        printf("Unable to read from '%s'\n", generated_csv_path);
+        return EXIT_FAILURE;
+    }
+    bytes_read += pump_ret;
+
+    num_columns = -1;
+    num_lines = 0;
+    num_values = 0;
+    double time_start_of_avx2 = get_time_ms();
+    for (;;) {
+        struct itj_csv_value value = itj_csv_get_next_value_avx2(&csv);
+
+#if 0
+        itj_csv_umax column;
+        if (num_columns == -1) {
+            column = value.idx;
+        } else {
+            column = value.idx % num_columns;
+        }
+#endif
+
+        if (value.need_data) {
+            pump_ret = itj_csv_pump_stdio(&csv);
+            if (pump_ret == 0) {
+                break;
+            } else {
+                bytes_read += pump_ret;
+                continue;
+            }
+        }
+
+        if (value.is_end_of_line) {
+            ++num_lines;
+            if (num_columns == -1) {
+                num_columns = value.idx + 1;
+            }
+        }
+
+        ++num_values;
+
+    }
+    double time_end_of_avx2 = get_time_ms();
+
+
+    sitrep("The following numbers are for the AVX2 version\n");
+
+    print_total(bytes_read, time_start_of_avx2, time_end_of_avx2);
+    itj_csv_close_fh(&csv);
+
     TracyCZoneEnd(zone_ctx);
+    printf("Finished. Press any key to quit\n");
     getc(stdin);
 
     return EXIT_SUCCESS;
