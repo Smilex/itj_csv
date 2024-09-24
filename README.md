@@ -1,5 +1,6 @@
 # itj_csv
 A header only C CSV parsing library, in style of the stb headers
+It only supports x86 and x86_64
 
 # Performance numbers
 These numbers use a read buffer of 2 MB and a CSV file about 1.4 GB

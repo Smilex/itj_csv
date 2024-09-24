@@ -1,5 +1,6 @@
 /*
  * This is a streaming CSV reader, with AVX and AVX2 support, written in a stb header style
+ * It only supports x86 and x86_64
  *
  * LICENSE available at the bottom
  *
@@ -15,6 +16,8 @@
  *
  *    USE "value" here
  *   }
+ *
+ *   KNOWN ISSUES: It expects an ending newline, and not just end of file
  */
 
 #ifndef ITJ_CSV_NO_STD
@@ -116,10 +119,6 @@ void itj_csv_ignore_newlines(struct itj_csv *csv) {
     itj_csv_umax max = csv->read_used;
     for (i = csv->read_iter; i < max; ++i) {
         itj_csv_u8 ch = csv->read_base[i];
-
-        if (ch == '\0') {
-            break;
-        }
 
         if (ch == '\r') {
             if (i + 1 < max) {
@@ -303,6 +302,7 @@ struct itj_csv_value itj_csv_parse_quotes_avx(struct itj_csv *csv, itj_csv_umax 
     i += 1;
     itj_csv_umax start = i;
     itj_csv_bool got_doubles = ITJ_CSV_FALSE;
+    itj_csv_bool quote_at_boundary = ITJ_CSV_FALSE;
 
     itj_csv_umax max = csv->read_used;
     while (i < max) {
@@ -311,21 +311,37 @@ struct itj_csv_value itj_csv_parse_quotes_avx(struct itj_csv *csv, itj_csv_umax 
         __m128i q = _mm_cmpeq_epi8(b, Q);
         itj_csv_u32 quotes_mask = _mm_movemask_epi8(q);
 
+        if (quote_at_boundary) {
+            if ((quotes_mask >> 15) & 0x1 != 0x1) {
+                goto get_out;
+            }
+            got_doubles = ITJ_CSV_TRUE;
+            quote_at_boundary = false;
+        }
+
+
         if (quotes_mask == 0) {
             i += 16;
         } else {
+            itj_csv_u32 acc = 0;
             do {
                 itj_csv_u32 j = itj_csv_ffs(quotes_mask) - 1;
                 quotes_mask = quotes_mask >> j;
                 if (quotes_mask & 0x1) {
-                    if ((quotes_mask & 0x3) == 3) {
-                        j += 2;
-                        quotes_mask = quotes_mask >> 2;
+                    if (acc == 15) {
+                        quote_at_boundary = true;
                         i += j;
-                        got_doubles = ITJ_CSV_TRUE;
+                        quotes_mask = 0;
                     } else {
-                        i += j;
-                        goto get_out;
+                        if ((quotes_mask & 0x3) == 3) {
+                            j += 2;
+                            quotes_mask = quotes_mask >> 2;
+                            i += j;
+                            got_doubles = ITJ_CSV_TRUE;
+                        } else {
+                            i += j;
+                            goto get_out;
+                        }
                     }
                 }
             } while (quotes_mask);
@@ -469,6 +485,7 @@ struct itj_csv_value itj_csv_parse_quotes_avx2(struct itj_csv *csv, itj_csv_umax
     i += 1;
     itj_csv_umax start = i;
     itj_csv_bool got_doubles = ITJ_CSV_FALSE;
+    itj_csv_bool quote_at_boundary = ITJ_CSV_FALSE;
 
     itj_csv_umax max = csv->read_used;
     while (i < max) {
@@ -477,21 +494,37 @@ struct itj_csv_value itj_csv_parse_quotes_avx2(struct itj_csv *csv, itj_csv_umax
         __m256i q = _mm256_cmpeq_epi8(b, Q);
         itj_csv_u32 quotes_mask = _mm256_movemask_epi8(q);
 
+        if (quote_at_boundary) {
+            if ((quotes_mask >> 31) & 0x1 != 0x1) {
+                goto get_out;
+            }
+            got_doubles = ITJ_CSV_TRUE;
+            quote_at_boundary = false;
+        }
+
         if (quotes_mask == 0) {
             i += 32;
         } else {
+            itj_csv_u32 acc = 0;
             do {
                 itj_csv_u32 j = itj_csv_ffs(quotes_mask) - 1;
                 quotes_mask = quotes_mask >> j;
+                acc += j;
                 if (quotes_mask & 0x1) {
-                    if ((quotes_mask & 0x3) == 3) {
-                        j += 2;
-                        quotes_mask = quotes_mask >> 2;
+                    if (acc == 31) {
+                        quote_at_boundary = true;
                         i += j;
-                        got_doubles = ITJ_CSV_TRUE;
+                        quotes_mask = 0;
                     } else {
-                        i += j;
-                        goto get_out;
+                        if ((quotes_mask & 0x3) == 3) {
+                            j += 2;
+                            quotes_mask = quotes_mask >> 2;
+                            i += j;
+                            got_doubles = ITJ_CSV_TRUE;
+                        } else {
+                            i += j;
+                            goto get_out;
+                        }
                     }
                 }
             } while (quotes_mask);
@@ -662,7 +695,7 @@ itj_csv_umax itj_csv_pump_stdio(struct itj_csv *csv) {
     return total_read;
 }
 
-itj_csv_bool itj_csv_open_fp(struct itj_csv *csv_out, FILE *fh, void *mem_buf, itj_csv_umax mem_buf_size, itj_csv_u8 delimiter, void *user_mem_ptr) {
+void itj_csv_open_fp(struct itj_csv *csv_out, FILE *fh, void *mem_buf, itj_csv_umax mem_buf_size, itj_csv_u8 delimiter, void *user_mem_ptr) {
     csv_out->read_iter = 0;
     csv_out->read_used = 0;
     csv_out->read_base = (itj_csv_u8 *)mem_buf;
@@ -671,8 +704,6 @@ itj_csv_bool itj_csv_open_fp(struct itj_csv *csv_out, FILE *fh, void *mem_buf, i
     csv_out->fh = fh;
     csv_out->user_mem_ptr = user_mem_ptr;
     csv_out->idx = 0;
-
-    return ITJ_CSV_TRUE;
 }
 
 itj_csv_bool itj_csv_open(struct itj_csv *csv_out, const char *filepath, itj_csv_u32 filepath_len, void *mem_buf, itj_csv_umax mem_buf_size, itj_csv_u8 delimiter, void *user_mem_ptr) {
@@ -686,13 +717,23 @@ itj_csv_bool itj_csv_open(struct itj_csv *csv_out, const char *filepath, itj_csv
         return ITJ_CSV_FALSE;
     }
 
-    itj_csv_bool rv = itj_csv_open_fp(csv_out, fh, mem_buf, mem_buf_size, delimiter, user_mem_ptr);
+    itj_csv_open_fp(csv_out, fh, mem_buf, mem_buf_size, delimiter, user_mem_ptr);
 
-    return rv;
+    return ITJ_CSV_TRUE;
 }
 
-
 #endif // ITJ_CSV_NO_STD
+
+void itj_csv_open_memory(struct itj_csv *csv_out, void *mem_buf, itj_csv_umax mem_buf_size, itj_csv_u8 delimiter, void *user_mem_ptr) {
+    csv_out->read_iter = 0;
+    csv_out->read_used = mem_buf_size;
+    csv_out->read_base = (itj_csv_u8 *)mem_buf;
+    csv_out->read_max = mem_buf_size;
+    csv_out->delimiter = delimiter;
+    csv_out->user_mem_ptr = user_mem_ptr;
+    csv_out->idx = 0;
+}
+
 /*
 ------------------------------------------------------------------------------
 This software is available under 2 licenses -- choose whichever you prefer.
